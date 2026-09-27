@@ -1,0 +1,202 @@
+Metadata-Version: 2.4
+Name: parallog
+Version: 0.1.0
+Summary: A map-reduce based Python package for parallel and distributed log analytics.
+Author: Muthu
+License: MIT
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Provides-Extra: distributed
+Requires-Dist: flask>=2.0; extra == "distributed"
+Requires-Dist: requests>=2.25; extra == "distributed"
+Provides-Extra: benchmark
+Requires-Dist: matplotlib>=3.5; extra == "benchmark"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+
+# Parallog
+
+A lightweight Python package that applies the **map-reduce paradigm** to
+log analytics — extracting error rates, endpoint traffic, and response-time
+distributions from large, unstructured log files, in parallel.
+
+Parallog demonstrates three levels of execution for the same job so the
+performance gain from parallelism is directly measurable:
+
+| Mode              | How it parallelizes                                         |
+|-------------------|--------------------------------------------------------------|
+| `sequential`       | Single process, single core — the baseline.                  |
+| `multiprocessing`  | Splits the file into N byte-aligned chunks, processed concurrently across local CPU cores via `multiprocessing.Pool`. |
+| `distributed`      | Splits the file into one chunk per worker **node** and dispatches each chunk over HTTP, in parallel, to independent `parallog serve-worker` processes — e.g. one per Docker container — simulating a real multi-node cluster. |
+
+## How it works (map-reduce)
+
+1. **Split** — `chunking.py` computes line-aligned byte offsets so the file
+   can be divided into N chunks without ever loading the whole thing into
+   one process's memory.
+2. **Map** — `mapper.map_chunk()` parses each line in a chunk and emits a
+   partial, JSON-serializable summary: line/level/status counts, per-endpoint
+   request counts, and per-endpoint latency stats (count, sum, min, max, and
+   a capped random sample used to estimate percentiles).
+3. **Reduce** — `reducer.reduce_all()` folds any number of partial summaries
+   into one final result. The reduce step is associative, so it doesn't
+   matter whether partials come from 4 local processes or 20 remote nodes,
+   or in what order they arrive.
+4. **Report** — `report.build_report()` turns the reduced result into a
+   summary: error rate, level/status breakdowns, top endpoints by traffic,
+   and p50/p90/p99 latency per endpoint — exportable as JSON or a plain-text
+   table.
+
+### Why sampled percentiles?
+
+Keeping every raw response-time value would defeat the point of map-reduce
+— partial results would grow unbounded as chunks are merged. Instead, each
+mapper keeps a fixed-size **reservoir sample** of the latencies it has seen;
+reducers merge two samples into one that remains an approximately fair
+sample of the combined stream (`stats.py`). Percentiles computed from the
+merged sample approximate the true percentiles — the same trade-off used by
+real streaming/distributed monitoring systems (e.g. Prometheus histograms,
+DataDog sketches).
+
+## Supported log formats
+
+Parallog auto-detects, per line:
+
+1. **JSON Lines** (recommended) — one JSON object per line, e.g.
+   `{"level": "ERROR", "endpoint": "/api/x", "status": 500, "response_time_ms": 240}`.
+   Common key aliases (`path`/`endpoint`, `latency_ms`/`response_time_ms`, etc.)
+   are normalized automatically.
+2. **Combined/Common Log Format** (Apache/Nginx style), optionally with a
+   trailing response-time field.
+3. Anything else that still contains a recognizable level keyword
+   (`INFO`/`WARN`/`ERROR`/...) is counted by level only. Lines matching
+   nothing are counted as parse errors in the report.
+
+## Installation
+
+```bash
+cd parallog
+pip install -e .                      # core (sequential + multiprocessing)
+pip install -e ".[distributed]"       # + HTTP worker nodes (flask, requests)
+pip install -e ".[benchmark]"         # + chart plotting (matplotlib)
+pip install -e ".[distributed,benchmark,dev]"   # everything, plus pytest
+```
+
+## Quickstart
+
+```bash
+# 1. Generate a synthetic log file to experiment with
+parallog generate-sample sample_logs.jsonl --lines 200000
+
+# 2. Analyze it (defaults to multiprocessing, using all CPU cores)
+parallog run sample_logs.jsonl --mode multiprocessing --top 10
+
+# 3. Compare execution modes
+parallog benchmark sample_logs.jsonl --workers-list 2,4,8 \
+    --output benchmark.json --chart benchmark.png
+```
+
+Or from Python:
+
+```python
+from parallog.engine import run_sequential, run_multiprocessing
+from parallog.report import build_report, format_report_table
+
+seq = run_sequential("sample_logs.jsonl")
+par = run_multiprocessing("sample_logs.jsonl", n_workers=4)
+print(f"speedup: {seq.elapsed_seconds / par.elapsed_seconds:.2f}x")
+
+report = build_report(par.result)
+print(format_report_table(report))
+```
+
+See `examples/quickstart.py` for a runnable end-to-end script.
+
+## Distributed execution across containers
+
+`docker/` contains everything needed to simulate a 3-node cluster on one
+machine:
+
+```bash
+# Build and start 3 worker containers (each running `parallog serve-worker`)
+docker compose -f docker/docker-compose.yml up --build
+
+# From the host, act as the coordinator: split the file across the 3 nodes,
+# dispatch chunks over HTTP in parallel, and reduce their results
+parallog run sample_logs.jsonl --mode distributed \
+    --worker-urls http://localhost:5001,http://localhost:5002,http://localhost:5003
+```
+
+Each worker is a minimal Flask service (`parallog/distributed/worker.py`)
+exposing a single `POST /map` endpoint that runs the same `map_chunk()`
+function used locally — the map phase's code is identical whether it runs
+in a local process or a remote container; only the transport differs.
+
+## Benchmarking
+
+`parallog benchmark` runs the sequential baseline, one or more
+multiprocessing worker counts, and (optionally, if worker URLs are given) a
+distributed run, all over the same input file, and reports elapsed time and
+speedup relative to the sequential baseline:
+
+```bash
+parallog benchmark sample_logs.jsonl --workers-list 1,2,4,8 --chart benchmark.png
+```
+
+```
+MODE              WORKERS    TIME (s)   SPEEDUP       LINES
+-----------------------------------------------------------
+sequential              1      0.951      1.00x      200000
+multiprocessing         2      0.542      1.75x      200000
+multiprocessing         4      0.311      3.06x      200000
+multiprocessing         8      0.287      3.31x      200000
+```
+
+(Actual numbers depend on available CPU cores; speedup flattens out once
+worker count exceeds core count, which the benchmark makes directly
+visible.)
+
+## Project layout
+
+```
+parallog/
+  parallog/
+    parser.py          # line -> normalized record
+    mapper.py           # MAP phase: chunk -> partial summary
+    reducer.py           # REDUCE phase: merge partial summaries
+    stats.py             # reservoir sampling + percentile math
+    chunking.py           # byte-aligned file splitting
+    engine.py             # sequential / multiprocessing / distributed execution
+    report.py             # summary + top endpoints + latency percentiles
+    benchmark.py           # timed comparison across execution modes
+    log_generator.py       # synthetic log file generator (for testing/demo)
+    cli.py                  # `parallog` command-line interface
+    distributed/
+      worker.py             # Flask HTTP worker node (the MAP phase as a service)
+  docker/
+    Dockerfile.worker         # containerized worker node image
+    docker-compose.yml         # 3-node local cluster
+  tests/                        # unit tests (parser, mapper/reducer, chunking, engine)
+  examples/quickstart.py         # runnable end-to-end example
+```
+
+## Design notes / limitations
+
+- Percentiles are **approximate** (reservoir-sampled), not exact — see
+  above. Counts, sums, and error rates are exact.
+- The multiprocessing engine reads chunk byte-ranges directly from disk in
+  each worker process rather than duplicating the whole file in memory,
+  so it scales to files much larger than what would fit as an in-memory
+  Python list — though the file is currently assumed to be on a filesystem
+  all local workers can read.
+- The distributed engine ships each chunk's raw lines over HTTP (since
+  containers don't share the coordinator's filesystem); for very large
+  files this network transfer, not the map computation, becomes the
+  bottleneck — a natural next step would be a shared object store (e.g.
+  S3/MinIO) so nodes fetch their own byte ranges directly.
+- `parallog serve-worker` uses Flask's development server, which is fine
+  for demonstrating the architecture but should be fronted by a proper
+  WSGI server (gunicorn, etc.) for anything resembling production use.
+- Future extensions: streaming/tailing live log files, a proper
+  coordinator service (rather than the CLI acting as coordinator),
+  and pluggable log-format parsers.

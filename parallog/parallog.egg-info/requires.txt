@@ -1,0 +1,10 @@
+
+[benchmark]
+matplotlib>=3.5
+
+[dev]
+pytest>=7.0
+
+[distributed]
+flask>=2.0
+requests>=2.25

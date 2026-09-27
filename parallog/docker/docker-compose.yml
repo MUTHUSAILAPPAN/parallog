@@ -1,0 +1,26 @@
+# Simulates a 3-node Parallog cluster. Build and start with:
+#   docker compose -f docker/docker-compose.yml up --build
+#
+# Then, from the host (coordinator), run:
+#   parallog run sample_logs.jsonl --mode distributed \
+#       --worker-urls http://localhost:5001,http://localhost:5002,http://localhost:5003
+version: "3.9"
+services:
+  worker1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    ports:
+      - "5001:5000"
+  worker2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    ports:
+      - "5002:5000"
+  worker3:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    ports:
+      - "5003:5000"
