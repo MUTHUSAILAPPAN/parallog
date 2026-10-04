@@ -4,6 +4,7 @@ parallog/__init__.py
 parallog/benchmark.py
 parallog/chunking.py
 parallog/cli.py
+parallog/dashboard.html
 parallog/engine.py
 parallog/log_generator.py
 parallog/mapper.py
@@ -11,6 +12,7 @@ parallog/parser.py
 parallog/reducer.py
 parallog/report.py
 parallog/stats.py
+parallog/ui.py
 parallog.egg-info/PKG-INFO
 parallog.egg-info/SOURCES.txt
 parallog.egg-info/dependency_links.txt

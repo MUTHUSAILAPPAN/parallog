@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#e5e6dc">
+  <title>Parallog | Log Observatory</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #e5e6dc; --panel: #fafaf4; --ink: #202822; --muted: #505b52;
+      --line: #aeb6a9; --green: #17644f; --green-soft: #dce9d9;
+      --orange: #d45f39; --orange-soft: #f7e2d5; --blue: #367395; --yellow: #e8c65b;
+      --mono: "IBM Plex Mono", "Courier New", monospace;
+      --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background-color: var(--paper); background-image: linear-gradient(rgba(32,40,34,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(32,40,34,.035) 1px, transparent 1px), linear-gradient(135deg, rgba(255,255,255,.22), transparent 60%); background-size: 32px 32px, 32px 32px, 100% 100%; font-family: var(--mono); font-size: 14px; }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    .shell { min-height: 100vh; display: grid; grid-template-columns: 224px minmax(0, 1fr); }
+    .rail { position: sticky; top: 0; height: 100vh; padding: 26px 18px; display: flex; flex-direction: column; border-right: 1px solid var(--line); background: rgba(229, 230, 220, .97); }
+    .brand { display: flex; align-items: center; gap: 11px; padding: 0 6px 28px; }
+    .brand-mark { width: 35px; height: 35px; display: grid; place-items: center; border: 1px solid var(--ink); background: var(--green); color: #fff; box-shadow: 3px 3px 0 var(--ink); font-size: 18px; font-weight: 700; }
+    .brand-name { font-weight: 700; font-size: 16px; }
+    .brand-caption { margin-top: 4px; color: var(--muted); font-size: 11px; }
+    .rail-label { margin: 11px 8px 9px; color: var(--muted); font-size: 11px; }
+    .nav-item { width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border: 1px solid transparent; background: transparent; color: var(--muted); text-align: left; cursor: pointer; font-size: 13px; }
+    .nav-item:hover { background: rgba(250, 250, 244, .7); color: var(--ink); }
+    .nav-item.active { border-color: #8d998c; background: var(--panel); color: var(--ink); box-shadow: 2px 2px 0 rgba(32,40,34,.12); }
+    .nav-icon { width: 17px; text-align: center; color: var(--green); font-size: 15px; }
+    .rail-spacer { flex: 1; }
+    .node-card { border: 1px solid var(--line); padding: 12px; background: var(--panel); }
+    .node-heading { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; }
+    .live-dot { color: var(--green); }
+    .node-meta { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+    .main { width: min(1460px, 100%); margin: 0 auto; padding: 28px clamp(18px, 3vw, 44px) 42px; }
+    .topline { display: flex; justify-content: space-between; align-items: center; padding-bottom: 17px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+    .topline-right { display: flex; align-items: center; gap: 8px; }
+    .status-led { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+    .intro { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding: 27px 0 22px; }
+    .eyebrow { color: var(--orange); font-size: 12px; }
+    h1 { margin: 8px 0 0; font: 500 44px/1 var(--serif); }
+    .intro-note { max-width: 390px; margin: 0 0 2px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+    .controls { display: grid; grid-template-columns: minmax(230px, 1fr) auto minmax(150px, 230px) auto; gap: 10px; align-items: center; padding: 12px; border: 1px solid var(--ink); background: var(--panel); box-shadow: 4px 4px 0 var(--ink); }
+    .file-picker { min-height: 39px; display: flex; align-items: center; gap: 9px; min-width: 0; padding: 0 10px; border: 1px dashed #98a298; background: #f7f7f0; cursor: pointer; }
+    .file-picker:hover, .file-picker:focus-within { border-color: var(--green); }
+    .file-icon { color: var(--green); font-size: 16px; }
+    .file-name { min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+    .file-input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .mode-select, .worker-input { width: 100%; min-height: 44px; padding: 0 10px; border: 1px solid var(--line); border-radius: 0; color: var(--ink); background: var(--panel); font-size: 13px; }
+    .worker-input { display: none; }
+    .worker-input.visible { display: block; }
+    .run-button { min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 9px; padding: 0 16px; border: 1px solid var(--ink); background: var(--green); color: white; cursor: pointer; font-size: 13px; font-weight: 700; white-space: nowrap; }
+    .run-button:hover { background: #10503e; }
+    .run-button:disabled { opacity: .65; cursor: wait; }
+    .run-icon { font-size: 15px; }
+    .sample-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; padding: 11px 13px; border: 1px solid var(--line); background: rgba(250,250,244,.8); color: var(--muted); font-size: 13px; }
+    .sample-tools label { margin-right: auto; }
+    .sample-size { min-height: 39px; padding: 0 9px; border: 1px solid var(--line); border-radius: 0; background: var(--panel); color: var(--ink); font-size: 13px; }
+    .sample-button, .download-link { min-height: 39px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 12px; border: 1px solid var(--ink); background: var(--panel); color: var(--ink); text-decoration: none; cursor: pointer; font-size: 13px; }
+    .sample-button:hover, .download-link:hover { background: var(--green-soft); }
+    .sample-button:disabled { opacity: .65; cursor: wait; }
+    .download-link[hidden] { display: none; }
+    .notice { display: none; margin-top: 15px; padding: 12px 14px; border-left: 3px solid var(--orange); background: var(--orange-soft); color: #71371f; line-height: 1.5; font-size: 13px; }
+    .notice.visible { display: block; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 24px 0 14px; }
+    .metric { min-height: 105px; position: relative; overflow: hidden; padding: 15px 16px; border: 1px solid var(--line); background: var(--panel); }
+    .metric::after { content: ""; position: absolute; top: 0; right: 0; width: 4px; height: 100%; background: var(--metric-accent, var(--green)); }
+    .metric-label { color: var(--muted); font-size: 12px; }
+    .metric-value { margin-top: 12px; font: 500 32px/1 var(--serif); }
+    .metric-foot { margin-top: 8px; color: var(--muted); font-size: 12px; }
+    .metric.orange { --metric-accent: var(--orange); }
+    .metric.blue { --metric-accent: var(--blue); }
+    .metric.yellow { --metric-accent: var(--yellow); }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(260px, .8fr); gap: 14px; }
+    .panel { min-width: 0; border: 1px solid var(--line); background: var(--panel); }
+    .panel-head { min-height: 47px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 15px; border-bottom: 1px solid var(--line); }
+    .panel-title { font-size: 12px; font-weight: 700; }
+    .panel-tag { color: var(--muted); font-size: 11px; }
+    .traffic-content { padding: 16px 17px 13px; }
+    .chart-legend { display: flex; gap: 17px; color: var(--muted); font-size: 11px; }
+    .legend-dot { display: inline-block; width: 7px; height: 7px; margin-right: 5px; background: var(--green); }
+    .legend-dot.orange-dot { background: var(--orange); }
+    .bars { min-height: 166px; display: flex; align-items: end; gap: clamp(5px, 1vw, 13px); padding: 10px 4px 0; border-bottom: 1px solid var(--line); }
+    .bar-item { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: end; height: 155px; gap: 7px; }
+    .bar-value { color: var(--muted); font-size: 11px; }
+    .bar-column { width: min(100%, 36px); min-height: 2px; border: 1px solid #145540; background: var(--green); animation: grow .45s ease-out both; transform-origin: bottom; }
+    .bar-column.hot { border-color: #b84c2c; background: var(--orange); }
+    .bar-label { width: 100%; overflow: hidden; color: var(--muted); text-align: center; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+    .levels { padding: 14px 16px 16px; }
+    .level-row { display: grid; grid-template-columns: 72px 1fr 48px; align-items: center; gap: 10px; margin: 14px 0; font-size: 12px; }
+    .level-name { color: var(--muted); }
+    .level-track { height: 8px; background: #e8ebe2; }
+    .level-fill { height: 100%; background: var(--green); transform-origin: left; animation: grow .5s ease-out both; }
+    .level-row:nth-child(2) .level-fill { background: var(--blue); }
+    .level-row:nth-child(3) .level-fill { background: var(--yellow); }
+    .level-row:nth-child(4) .level-fill, .level-row:nth-child(5) .level-fill { background: var(--orange); }
+    .lower { margin-top: 14px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; }
+    th { padding: 12px 14px; color: var(--muted); font-size: 11px; font-weight: 700; }
+    td { padding: 13px 14px; border-top: 1px solid #d4d8ce; font-size: 13px; }
+    tbody tr:hover { background: #f4f5ed; }
+    td:first-child { color: var(--green); font-weight: 700; }
+    .latency-cell { display: flex; align-items: center; gap: 8px; }
+    .latency-meter { width: 54px; height: 5px; background: #e6e9df; }
+    .latency-fill { height: 100%; background: var(--orange); }
+    .empty { padding: 21px 15px; color: var(--muted); font-size: 13px; }
+    .footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 16px; color: var(--muted); font-size: 11px; }
+    .footer strong { color: var(--green); font-weight: 400; }
+    .view-panel[hidden] { display: none; }
+    .view-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin: 22px 0 12px; }
+    .view-heading h2 { margin: 0; font: 500 25px/1.2 var(--serif); }
+    .view-heading p { max-width: 560px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .analysis-panel, .pipeline-panel { margin-top: 14px; }
+    .pipeline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+    .pipeline-step { min-height: 178px; position: relative; padding: 16px; border: 1px solid var(--line); background: var(--panel); }
+    .pipeline-step:not(:last-child)::after { content: "→"; position: absolute; z-index: 1; top: 18px; right: -12px; color: var(--orange); font-size: 18px; }
+    .step-number { color: var(--orange); font-size: 12px; }
+    .pipeline-step h3 { margin: 16px 0 8px; font: 500 20px/1.1 var(--serif); }
+    .pipeline-step p { min-height: 58px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .step-status { display: inline-block; margin-top: 13px; color: var(--green); font-size: 11px; }
+    .execution-details { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .execution-detail { padding: 15px 17px; border-right: 1px solid var(--line); }
+    .execution-detail:last-child { border-right: 0; }
+    .execution-label { color: var(--muted); font-size: 11px; }
+    .execution-value { margin-top: 8px; font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+    @keyframes grow { from { transform: scaleY(.05); } to { transform: scaleY(1); } }
+    @media (max-width: 950px) {
+      .shell { grid-template-columns: 68px minmax(0, 1fr); }
+      .rail { align-items: center; padding-inline: 8px; }
+      .brand { padding: 0 0 26px; }
+      .brand-copy, .rail-label, .nav-copy, .node-card { display: none; }
+      .nav-item { width: 44px; justify-content: center; padding: 0; }
+      .nav-icon { font-size: 17px; }
+      .controls { grid-template-columns: minmax(170px, 1fr) 165px auto; }
+      .worker-input { grid-column: 1 / -2; }
+      .pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .pipeline-step:nth-child(2)::after { display: none; }
+    }
+    @media (max-width: 650px) {
+      .shell { display: block; }
+      .rail { position: static; width: 100%; height: auto; flex-direction: row; flex-wrap: wrap; justify-content: space-between; padding: 11px 15px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .brand { flex-basis: 100%; padding: 0 0 8px; }
+      .brand-copy { display: block; }
+      .rail-label, .node-card, .rail-spacer { display: none; }
+      .rail nav { display: flex; width: 100%; min-width: 0; justify-content: space-between; gap: 3px; overflow: visible; }
+      .nav-item { width: auto; min-width: 0; min-height: 38px; flex: 1; justify-content: center; gap: 0; padding: 0 5px; font-size: 11px; white-space: nowrap; }
+      .nav-icon { display: none; }
+      .nav-copy { display: inline; }
+      .brand-caption { display: none; }
+      .main { padding: 18px 14px 28px; }
+      .topline { font-size: 11px; }
+      h1 { font-size: 36px; }
+      .intro { align-items: start; flex-direction: column; gap: 10px; padding: 21px 0 17px; }
+      .intro-note { max-width: none; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .file-picker { grid-column: 1 / -1; }
+      .mode-select { grid-column: 1; }
+      .worker-input.visible { grid-column: 1 / -1; }
+      .run-button { grid-column: 2; grid-row: 2; }
+      .worker-input.visible ~ .run-button { grid-row: 4; }
+      .metrics { grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 19px; }
+      .metric { min-height: 92px; padding: 12px; }
+      .metric-value { font-size: 24px; }
+      .grid { grid-template-columns: 1fr; gap: 10px; }
+      .bars { gap: 5px; }
+      .bar-label { font-size: 10px; }
+      .footer { flex-direction: column; }
+      .sample-tools { align-items: stretch; }
+      .sample-tools label { flex-basis: 100%; }
+      .sample-size, .sample-button, .download-link { flex: 1; }
+      .view-heading { align-items: start; flex-direction: column; gap: 7px; }
+      .view-heading h2 { font-size: 23px; }
+      .pipeline { grid-template-columns: 1fr; }
+      .pipeline-step { min-height: auto; }
+      .pipeline-step:not(:last-child)::after { content: "↓"; top: auto; right: 16px; bottom: -14px; }
+      .pipeline-step:nth-child(2)::after { display: block; }
+      .pipeline-step p { min-height: auto; }
+      .execution-details { grid-template-columns: 1fr 1fr; }
+      .execution-detail:nth-child(2) { border-right: 0; }
+      .execution-detail:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <div class="brand"><div class="brand-mark" aria-hidden="true">P_</div><div class="brand-copy"><div class="brand-name">PARALLOG</div><div class="brand-caption">LOG OBSERVATORY / 01</div></div></div>
+      <div class="rail-label">WORKSPACE</div>
+      <nav aria-label="Workspace views">
+        <button class="nav-item active" type="button" data-view="overview" aria-current="page"><span class="nav-icon" aria-hidden="true">▦</span><span class="nav-copy">Overview</span></button>
+        <button class="nav-item" type="button" data-view="analysis"><span class="nav-icon" aria-hidden="true">≋</span><span class="nav-copy">Log analysis</span></button>
+        <button class="nav-item" type="button" data-view="map-reduce"><span class="nav-icon" aria-hidden="true">⌁</span><span class="nav-copy">Map / Reduce</span></button>
+      </nav>
+      <div class="rail-spacer"></div>
+      <div class="node-card"><div class="node-heading"><span>LOCAL ENGINE</span><span class="live-dot">● READY</span></div><div class="node-meta">Sequential · Multiprocess<br>Distributed worker support</div></div>
+    </aside>
+    <main class="main">
+      <div class="topline"><span>FIELD CONSOLE &nbsp;/&nbsp; ANALYTICS</span><span class="topline-right"><span class="status-led" aria-hidden="true"></span><span>LOCAL ENGINE</span></span></div>
+      <header class="intro"><div><div class="eyebrow" id="view-eyebrow">01 — SYSTEM OVERVIEW</div><h1 id="view-title">Log observatory</h1></div><p class="intro-note" id="view-description">Map-reduce analytics for the signals hiding in your logs. Choose a file and run it through the Parallog engine.</p></header>
+      <form class="controls" id="analysis-form">
+        <label class="file-picker" for="log-file"><span class="file-icon" aria-hidden="true">▤</span><span class="file-name" id="file-name">Choose a .jsonl or .log file</span><input class="file-input" id="log-file" type="file" accept=".jsonl,.log,.txt,application/json"></label>
+        <select class="mode-select" id="mode" aria-label="Execution mode"><option value="sequential">Sequential</option><option value="multiprocessing">Multiprocessing</option><option value="distributed">Distributed</option></select>
+        <input class="worker-input" id="workers" type="number" min="1" max="64" value="4" aria-label="Worker processes" placeholder="Worker processes">
+        <button class="run-button" id="run-button" type="submit"><span class="run-icon" aria-hidden="true">▶</span><span id="run-label">Run analysis</span></button>
+        <input class="worker-input" id="worker-urls" type="text" aria-label="Worker URLs" placeholder="http://localhost:5001, ...">
+      </form>
+      <div class="sample-tools"><label for="sample-size">No logs to upload? Generate a sample file.</label><select class="sample-size" id="sample-size" aria-label="Sample log size"><option value="1000">1,000 lines</option><option value="10000">10,000 lines</option><option value="50000">50,000 lines</option></select><button class="sample-button" id="sample-button" type="button"><span aria-hidden="true">✳</span> Create sample log</button><a class="download-link" id="download-sample" hidden download="sample_logs.jsonl">Download</a></div>
+      <div class="notice" id="notice" role="alert"></div>
+      <section class="metrics" aria-label="Analysis summary">
+        <article class="metric"><div class="metric-label">LINES PROCESSED</div><div class="metric-value" id="total-lines">—</div><div class="metric-foot" id="source-label">Awaiting log file</div></article>
+        <article class="metric orange"><div class="metric-label">ERROR RATE</div><div class="metric-value" id="error-rate">—</div><div class="metric-foot">ERROR + CRITICAL levels</div></article>
+        <article class="metric blue"><div class="metric-label">PARSE ERRORS</div><div class="metric-value" id="parse-errors">—</div><div class="metric-foot">Lines without a recognized record</div></article>
+        <article class="metric yellow"><div class="metric-label">ENGINE TIME</div><div class="metric-value" id="elapsed">—</div><div class="metric-foot" id="engine-label">Awaiting analysis</div></article>
+      </section>
+      <section class="view-panel" data-view-panel="overview">
+        <div class="view-heading"><h2>Traffic overview</h2><p>Request volume and severity distribution from the most recent analysis.</p></div>
+        <div class="grid">
+          <section class="panel"><div class="panel-head"><div class="panel-title">ENDPOINT TRAFFIC</div><div class="chart-legend"><span><i class="legend-dot"></i>REQUESTS</span><span><i class="legend-dot orange-dot"></i>TOP ROUTE</span></div></div><div class="traffic-content"><div class="bars" id="traffic-chart" aria-label="Requests by endpoint"><div class="empty">Run an analysis to chart endpoint traffic.</div></div></div></section>
+          <section class="panel"><div class="panel-head"><div class="panel-title">LOG LEVELS</div><div class="panel-tag">RECORD BREAKDOWN</div></div><div class="levels" id="level-chart"><div class="empty">Level counts will appear here.</div></div></section>
+        </div>
+      </section>
+      <section class="view-panel" data-view-panel="analysis" hidden>
+        <div class="view-heading"><h2>Latency by endpoint</h2><p>Inspect average response times and sampled tail percentiles from your selected log.</p></div>
+        <section class="panel analysis-panel"><div class="panel-head"><div class="panel-title">LATENCY REGISTER</div><div class="panel-tag">RESERVOIR-SAMPLED PERCENTILES · MS</div></div><div class="table-wrap"><table><thead><tr><th>ENDPOINT</th><th>REQUESTS</th><th>AVERAGE</th><th>P50</th><th>P90</th><th>P99</th><th>MAX</th></tr></thead><tbody id="latency-rows"><tr><td colspan="7" class="empty">Endpoint latency will appear here after analysis.</td></tr></tbody></table></div></section>
+      </section>
+      <section class="view-panel" data-view-panel="map-reduce" hidden>
+        <div class="view-heading"><h2>Execution pipeline</h2><p>Follow each stage of the current job. Worker counts and elapsed time update from the real engine result.</p></div>
+        <div class="pipeline" aria-label="Map reduce pipeline">
+          <article class="pipeline-step"><span class="step-number">01 / INPUT</span><h3>Split</h3><p id="split-detail">Choose a mode and run an analysis to see its input strategy.</p><span class="step-status" id="split-status">WAITING</span></article>
+          <article class="pipeline-step"><span class="step-number">02 / MAP</span><h3>Map</h3><p>Parse each record and create partial counts, endpoint totals, and latency samples.</p><span class="step-status" id="map-status">WAITING</span></article>
+          <article class="pipeline-step"><span class="step-number">03 / REDUCE</span><h3>Reduce</h3><p>Merge partial summaries into one result across the selected workers.</p><span class="step-status" id="reduce-status">WAITING</span></article>
+          <article class="pipeline-step"><span class="step-number">04 / REPORT</span><h3>Report</h3><p>Calculate error rates, endpoint rankings, and sampled latency percentiles.</p><span class="step-status" id="report-status">WAITING</span></article>
+        </div>
+        <section class="panel pipeline-panel"><div class="panel-head"><div class="panel-title">LAST EXECUTION</div><div class="panel-tag" id="pipeline-file">NO JOB RUN</div></div><div class="execution-details"><div class="execution-detail"><div class="execution-label">MODE</div><div class="execution-value" id="pipeline-mode">—</div></div><div class="execution-detail"><div class="execution-label">WORKERS</div><div class="execution-value" id="pipeline-workers">—</div></div><div class="execution-detail"><div class="execution-label">INPUT RECORDS</div><div class="execution-value" id="pipeline-records">—</div></div><div class="execution-detail"><div class="execution-label">ELAPSED</div><div class="execution-value" id="pipeline-time">—</div></div></div></section>
+      </section>
+      <footer class="footer"><span>PARALLOG &nbsp;·&nbsp; MAP / REDUCE LOG ANALYTICS</span><span id="run-meta">Ready for input <strong>●</strong></span></footer>
+    </main>
+  </div>
+  <script>
+    const form = document.querySelector("#analysis-form");
+    const fileInput = document.querySelector("#log-file");
+    const modeInput = document.querySelector("#mode");
+    const workerInput = document.querySelector("#workers");
+    const workerUrlsInput = document.querySelector("#worker-urls");
+    const runButton = document.querySelector("#run-button");
+    const runLabel = document.querySelector("#run-label");
+    const notice = document.querySelector("#notice");
+    const sampleButton = document.querySelector("#sample-button");
+    const sampleSize = document.querySelector("#sample-size");
+    const downloadSample = document.querySelector("#download-sample");
+    let sampleDownloadUrl = null;
+    let selectedFile = null;
+
+    const views = {
+      overview: ["01 — SYSTEM OVERVIEW", "Log observatory", "Map-reduce analytics for the signals hiding in your logs. Choose a file and run it through the Parallog engine."],
+      analysis: ["02 — LOG ANALYSIS", "Log analysis", "Compare endpoint response times and inspect sampled latency percentiles."],
+      "map-reduce": ["03 — EXECUTION MODEL", "Map / Reduce", "See how the selected execution mode splits, maps, reduces, and reports your log data."]
+    };
+
+    document.querySelectorAll("[data-view]").forEach(button => {
+      button.addEventListener("click", () => {
+        const view = button.dataset.view;
+        document.querySelectorAll("[data-view]").forEach(item => {
+          item.classList.toggle("active", item === button);
+          if (item === button) item.setAttribute("aria-current", "page");
+          else item.removeAttribute("aria-current");
+        });
+        document.querySelectorAll("[data-view-panel]").forEach(panel => {
+          panel.hidden = panel.dataset.viewPanel !== view;
+        });
+        document.querySelector("#view-eyebrow").textContent = views[view][0];
+        document.querySelector("#view-title").textContent = views[view][1];
+        document.querySelector("#view-description").textContent = views[view][2];
+      });
+    });
+
+    const number = value => new Intl.NumberFormat().format(value ?? 0);
+    const percent = value => `${((value ?? 0) * 100).toFixed(2)}%`;
+    const ms = value => value == null ? "—" : `${Number(value).toFixed(1)} ms`;
+
+    fileInput.addEventListener("change", () => {
+      selectedFile = fileInput.files[0] || null;
+      document.querySelector("#file-name").textContent = selectedFile ? selectedFile.name : "Choose a .jsonl or .log file";
+      notice.classList.remove("visible");
+    });
+    modeInput.addEventListener("change", () => {
+      workerInput.classList.toggle("visible", modeInput.value === "multiprocessing");
+      workerUrlsInput.classList.toggle("visible", modeInput.value === "distributed");
+    });
+    sampleButton.addEventListener("click", async () => {
+      sampleButton.disabled = true;
+      sampleButton.textContent = "Creating sample…";
+      notice.classList.remove("visible");
+      try {
+        const response = await fetch("/api/sample", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lines: Number(sampleSize.value) })
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Could not create a sample log.");
+        selectedFile = new File([payload.content], payload.filename, { type: "application/json" });
+        const transfer = new DataTransfer();
+        transfer.items.add(selectedFile);
+        fileInput.files = transfer.files;
+        fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+        if (sampleDownloadUrl) URL.revokeObjectURL(sampleDownloadUrl);
+        sampleDownloadUrl = URL.createObjectURL(selectedFile);
+        downloadSample.href = sampleDownloadUrl;
+        downloadSample.hidden = false;
+        notice.textContent = "Sample log created and selected. Run analysis or download sample_logs.jsonl.";
+        notice.classList.add("visible");
+      } catch (error) { showError(error.message || "Could not create a sample log."); }
+      finally {
+        sampleButton.disabled = false;
+        sampleButton.innerHTML = '<span aria-hidden="true">✳</span> Create sample log';
+      }
+    });
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (!selectedFile) { showError("Choose a log file before starting the analysis."); return; }
+      runButton.disabled = true;
+      runLabel.textContent = "Analyzing…";
+      notice.classList.remove("visible");
+      try {
+        const response = await fetch("/api/analyze", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: selectedFile.name, content: await selectedFile.text(), mode: modeInput.value, workers: Number(workerInput.value), worker_urls: workerUrlsInput.value })
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Analysis failed.");
+        render(payload);
+      } catch (error) { showError(error.message || "Could not reach the Parallog engine."); }
+      finally { runButton.disabled = false; runLabel.textContent = "Run analysis"; }
+    });
+
+    function showError(message) { notice.textContent = message; notice.classList.add("visible"); }
+    function render(payload) {
+      const report = payload.report;
+      const summary = report.summary;
+      document.querySelector("#total-lines").textContent = number(summary.total_lines);
+      document.querySelector("#error-rate").textContent = percent(summary.error_rate);
+      document.querySelector("#parse-errors").textContent = number(summary.parse_errors);
+      document.querySelector("#source-label").textContent = payload.filename;
+      document.querySelector("#elapsed").textContent = `${payload.elapsed_seconds.toFixed(3)}s`;
+      document.querySelector("#engine-label").textContent = `${payload.mode} · ${payload.workers} worker${payload.workers === 1 ? "" : "s"}`;
+      document.querySelector("#run-meta").innerHTML = "ANALYSIS COMPLETE &nbsp; <strong>●</strong>";
+      document.querySelector("#pipeline-file").textContent = payload.filename;
+      document.querySelector("#pipeline-mode").textContent = payload.mode;
+      document.querySelector("#pipeline-workers").textContent = number(payload.workers);
+      document.querySelector("#pipeline-records").textContent = number(summary.total_lines);
+      document.querySelector("#pipeline-time").textContent = `${payload.elapsed_seconds.toFixed(3)}s`;
+      const splitDescriptions = {
+        sequential: "One input stream mapped in a single process.",
+        multiprocessing: "Line-aligned byte ranges processed by local worker processes.",
+        distributed: "Line-aligned chunks dispatched to remote HTTP worker nodes."
+      };
+      document.querySelector("#split-detail").textContent = splitDescriptions[payload.mode];
+      ["split", "map", "reduce", "report"].forEach(stage => {
+        document.querySelector(`#${stage}-status`).textContent = "COMPLETE";
+      });
+      renderTraffic(report.top_endpoints || []);
+      renderLevels(report.level_counts || {});
+      renderLatency(report.endpoint_latency || []);
+    }
+    function renderTraffic(endpoints) {
+      const chart = document.querySelector("#traffic-chart");
+      if (!endpoints.length) { chart.innerHTML = '<div class="empty">No endpoint traffic found in this log.</div>'; return; }
+      const max = Math.max(...endpoints.map(row => row.requests), 1);
+      chart.innerHTML = endpoints.slice(0, 8).map((row, index) => `
+        <div class="bar-item" title="${escapeHtml(row.endpoint)}: ${number(row.requests)} requests">
+          <span class="bar-value">${number(row.requests)}</span>
+          <div class="bar-column ${index === 0 ? "hot" : ""}" style="height:${Math.max(3, row.requests / max * 105)}px"></div>
+          <span class="bar-label">${escapeHtml(row.endpoint)}</span></div>`).join("");
+    }
+    function renderLevels(levels) {
+      const chart = document.querySelector("#level-chart");
+      const entries = Object.entries(levels).sort((a, b) => b[1] - a[1]);
+      if (!entries.length) { chart.innerHTML = '<div class="empty">No recognized log levels found.</div>'; return; }
+      const max = Math.max(...entries.map(([, count]) => count), 1);
+      chart.innerHTML = entries.map(([level, count]) => `
+        <div class="level-row"><span class="level-name">${escapeHtml(level)}</span>
+          <div class="level-track"><div class="level-fill" style="width:${count / max * 100}%"></div></div>
+          <span class="level-count">${number(count)}</span></div>`).join("");
+    }
+    function renderLatency(rows) {
+      const body = document.querySelector("#latency-rows");
+      if (!rows.length) { body.innerHTML = '<tr><td colspan="7" class="empty">No latency measurements found.</td></tr>'; return; }
+      const max = Math.max(...rows.map(row => row.max_ms || 0), 1);
+      body.innerHTML = rows.map(row => `
+        <tr><td>${escapeHtml(row.endpoint)}</td><td>${number(row.requests)}</td>
+          <td>${ms(row.avg_ms)}</td><td>${ms(row.p50_ms)}</td><td>${ms(row.p90_ms)}</td>
+          <td>${ms(row.p99_ms)}</td><td><span class="latency-cell">${ms(row.max_ms)}<i class="latency-meter"><i class="latency-fill" style="display:block;width:${(row.max_ms || 0) / max * 100}%"></i></i></span></td></tr>`).join("");
+    }
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+    }
+  </script>
+</body>
+</html>

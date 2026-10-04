@@ -1,5 +1,8 @@
 # Parallog
 
+For complete setup instructions, distributed-system usage, dashboard guidance,
+and architecture notes, see [DOCUMENTATION.md](DOCUMENTATION.md).
+
 A lightweight Python package that applies the **map-reduce paradigm** to
 log analytics — extracting error rates, endpoint traffic, and response-time
 distributions from large, unstructured log files, in parallel.
@@ -95,6 +98,20 @@ print(format_report_table(report))
 ```
 
 See `examples/quickstart.py` for a runnable end-to-end script.
+
+## Browser dashboard
+
+Start the local dashboard with:
+
+```bash
+parallog dashboard
+```
+
+Open `http://127.0.0.1:8000`, choose a `.jsonl` or `.log` file, and run an
+analysis using sequential, multiprocessing, or distributed workers. The
+dashboard is served locally and sends uploaded log contents to the existing
+Parallog engine; uploads are held in a temporary file only while an analysis
+runs. The default upload limit is 50 MB.
 
 ## Distributed execution across containers
 

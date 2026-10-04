@@ -22,3 +22,6 @@ parallog = "parallog.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["parallog*"]
+
+[tool.setuptools.package-data]
+parallog = ["dashboard.html"]

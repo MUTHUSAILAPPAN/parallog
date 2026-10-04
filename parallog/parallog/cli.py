@@ -60,6 +60,11 @@ def cmd_serve_worker(args):
     serve(host=args.host, port=args.port)
 
 
+def cmd_dashboard(args):
+    from .ui import serve_dashboard
+    serve_dashboard(host=args.host, port=args.port)
+
+
 def build_parser():
     import argparse
     p = argparse.ArgumentParser(prog="parallog", description="Map-reduce log analytics.")
@@ -93,6 +98,11 @@ def build_parser():
     worker_p.add_argument("--host", type=str, default="0.0.0.0")
     worker_p.add_argument("--port", type=int, default=5000)
     worker_p.set_defaults(func=cmd_serve_worker)
+
+    dashboard_p = sub.add_parser("dashboard", help="Open the local browser dashboard.")
+    dashboard_p.add_argument("--host", type=str, default="127.0.0.1")
+    dashboard_p.add_argument("--port", type=int, default=8000)
+    dashboard_p.set_defaults(func=cmd_dashboard)
 
     return p
 
